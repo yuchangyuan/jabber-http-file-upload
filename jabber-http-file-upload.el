@@ -33,12 +33,17 @@
 
 (require 'jabber)
 (require 'url)
+(require 'mailcap)
 
 (defun jabber-http-file-upload-done-cb (status data)
   (let ((to  (plist-get data :to))
         (jc  (plist-get data :jc))
-        (get (plist-get data :get)))
-    (jabber-send-message jc to nil get "chat")))
+        (get (plist-get data :get))
+        (buffer (plist-get data :buffer)))
+    (with-current-buffer buffer
+      (if (eq jabber-buffer-connection jc)
+          (jabber-chat-send jabber-buffer-connection get)
+        (jabber-send-message jc to nil get "chat")))))
 
 (defun jabber-http-file-upload-request-cb (jc xml-data data)
   (let* ((mime (plist-get data :mime))
@@ -93,7 +98,8 @@
       ;; remove current elem
       (plist-put data :items1 (cdr items1))
       (jabber-send-iq jc (car items1) "get"
-                      '(query ((xmlns . "http://jabber.org/protocol/disco#info")))
+                      '(query ((xmlns
+                                . "http://jabber.org/protocol/disco#info")))
                       #'jabber-http-file-upload-disco-info-cb data
                       #'jabber-process-data "Info discovery failed"))))
 
@@ -118,8 +124,8 @@
       (plist-put data :items0 (cdr items0))
       (plist-put data :items1 (cons (car items0) items1))
       (jabber-send-iq jc (car items0) "get"
-                      '(query
-                        ((xmlns . "http://jabber.org/protocol/disco#items")))
+                      '(query ((xmlns
+                                . "http://jabber.org/protocol/disco#items")))
                       #'jabber-http-file-upload-disco-items-cb data
                       #'jabber-process-data "Item discovery failed"))
     (unless items0
@@ -127,13 +133,17 @@
 
 (defun jabber-http-file-upload (jc to file)
   "Share file with xmpp http upload extension XEP-0363."
-  (interactive (list (jabber-read-account)
-                     (jabber-read-jid-completing "Share file with: ")
+  (interactive (list (or (and (memq jabber-buffer-connection
+                                     jabber-connections)
+                               jabber-buffer-connection)
+                         (jabber-read-account))
+                     (or jabber-chatting-with
+                         (jabber-read-jid-completing "Share file with: "))
                      (ido-read-file-name "file: ")))
   (let* ((server (plist-get (fsm-get-state-data jc) :server))
-         (data `(:to ,to :file ,file :items0 (,server) :items1 ())))
+         (data `(:to ,to :file ,file :buffer ,(current-buffer)
+                     :items0 (,server) :items1 ())))
     (jabber-http-file-upload-disco-items jc data)))
-
 
 (provide 'jabber-http-file-upload)
 ;;; jabber-http-file-upload.el ends here
