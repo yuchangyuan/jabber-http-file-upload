@@ -52,16 +52,18 @@
                                                     'put))))
          (get (nth 1 (cdar (jabber-xml-get-children (jabber-iq-query xml-data)
                                                     'get))))
+         (to (plist-get data :to))
+         (buffer (plist-get data :buffer))
          (url-request-method "PUT")
          (url-request-extra-headers `(("Content-Type" . ,mime)))
          (url-request-data (with-temp-buffer
                              (insert-file-contents file)
                              (buffer-substring-no-properties (point-min)
                                                              (point-max)))))
-    (plist-put data :get get)
-    (plist-put data :jc jc)
     (message "put %s\nget %s" put get)
-    (url-retrieve put #'jabber-http-file-upload-done-cb (list data))))
+    (url-retrieve put
+                  #'jabber-http-file-upload-done-cb
+                  (list `(:jc ,jc :to ,to :get ,get :buffer ,buffer)))))
 
 (defun jabber-http-file-upload-request (jc to data)
   (let* ((file (plist-get data :file))
